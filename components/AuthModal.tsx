@@ -4,9 +4,10 @@ import { Lock, ArrowRight, Loader2 } from 'lucide-react';
 interface AuthModalProps {
   isOpen: boolean;
   onLogin: (password: string) => Promise<boolean>;
+  onSkip?: () => void; // 可选的跳过登录回调，用于游客模式
 }
 
-const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onLogin }) => {
+const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onLogin, onSkip }) => {
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
@@ -17,7 +18,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onLogin }) => {
     e.preventDefault();
     setIsLoading(true);
     setError('');
-    
+
     const success = await onLogin(password);
     if (!success) {
       setError('密码错误或无法连接服务器');
@@ -63,6 +64,16 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onLogin }) => {
           >
             {isLoading ? <Loader2 className="animate-spin" /> : <>解锁进入 <ArrowRight size={18} /></>}
           </button>
+
+          {onSkip && (
+            <button
+              type="button"
+              onClick={onSkip}
+              className="w-full mt-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 font-medium py-3 px-4 rounded-xl transition-colors flex items-center justify-center gap-2"
+            >
+              以游客身份访问（只读模式）
+            </button>
+          )}
         </form>
       </div>
     </div>

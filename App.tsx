@@ -2035,7 +2035,7 @@ function App() {
                 </button>
 
                 <button
-                  onClick={() => setIsSettingsModalOpen(true)}
+                  onClick={() => { if (!authToken) setIsAuthOpen(true); else setIsSettingsModalOpen(true); }}
                   className="flex flex-col items-center justify-center gap-1 p-2 text-xs text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700 rounded-lg border border-slate-200 dark:border-slate-600 transition-all"
                   title="AI 设置"
                 >
@@ -2344,9 +2344,9 @@ function App() {
                         items={pinnedLinks.map(link => link.id)}
                         strategy={rectSortingStrategy}
                       >
-                        <div className={`grid gap-3 ${viewMode === 'detailed'
-                          ? 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6'
-                          : 'grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8'
+                        <div className={`grid gap-3 max-w-[1920px] mx-auto ${viewMode === 'detailed'
+                          ? 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8'
+                          : 'grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 2xl:grid-cols-10'
                           }`}>
                           {pinnedLinks.map(link => (
                             <SortableLinkCard key={link.id} link={link} />
@@ -2355,9 +2355,9 @@ function App() {
                       </SortableContext>
                     </DndContext>
                   ) : (
-                    <div className={`grid gap-3 ${viewMode === 'detailed'
-                      ? 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6'
-                      : 'grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8'
+                    <div className={`grid gap-3 max-w-[1920px] mx-auto ${viewMode === 'detailed'
+                      ? 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8'
+                      : 'grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 2xl:grid-cols-10'
                       }`}>
                       {pinnedLinks.map(link => renderLinkCard(link))}
                     </div>
@@ -2509,9 +2509,9 @@ function App() {
                           items={displayedLinks.map(link => link.id)}
                           strategy={rectSortingStrategy}
                         >
-                          <div className={`grid gap-3 ${viewMode === 'detailed'
-                            ? 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6'
-                            : 'grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8'
+                          <div className={`grid gap-3 max-w-[1920px] mx-auto ${viewMode === 'detailed'
+                            ? 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8'
+                            : 'grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 2xl:grid-cols-10'
                             }`}>
                             {displayedLinks.map(link => (
                               <SortableLinkCard key={link.id} link={link} />
@@ -2520,9 +2520,9 @@ function App() {
                         </SortableContext>
                       </DndContext>
                     ) : (
-                      <div className={`grid gap-3 ${viewMode === 'detailed'
-                        ? 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6'
-                        : 'grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8'
+                      <div className={`grid gap-3 max-w-[1920px] mx-auto ${viewMode === 'detailed'
+                        ? 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8'
+                        : 'grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 2xl:grid-cols-10'
                         }`}>
                         {displayedLinks.map(link => renderLinkCard(link))}
                       </div>

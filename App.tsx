@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Search, Plus, Upload, Moon, Sun, Menu,
   Trash2, Edit2, Loader2, Cloud, CheckCircle2, AlertCircle,
-  Pin, Settings, Lock, CloudCog, Github, GitFork, GripVertical, Save, CheckSquare, LogOut, ExternalLink
+  Pin, Settings, Lock, CloudCog, Github, GitFork, GripVertical, Save, CheckSquare, LogOut, ExternalLink, Sparkles
 } from 'lucide-react';
 import {
   DndContext,
@@ -37,6 +37,7 @@ import SettingsModal from './components/SettingsModal';
 import SearchConfigModal from './components/SearchConfigModal';
 import ContextMenu from './components/ContextMenu';
 import QRCodeModal from './components/QRCodeModal';
+import WidgetContainer from './components/widgets/WidgetContainer';
 
 // --- 配置项 ---
 // 项目核心仓库地址
@@ -170,6 +171,9 @@ function App() {
     unit: 'week'
   });
 
+  // Widget Container State
+  const [isWidgetContainerOpen, setIsWidgetContainerOpen] = useState(false);
+
   // --- Helpers & Sync Logic ---
 
   const loadFromLocal = () => {
@@ -198,14 +202,26 @@ function App() {
           }
         }
 
-        // 检查是否有链接的categoryId不存在于当前分类中，将这些链接移动到"常用推荐"
+        // 检查是否有链接的categoryIds不存在于当前分类中，将这些链接移动到"常用推荐"
         const validCategoryIds = new Set(loadedCategories.map(c => c.id));
         let loadedLinks = parsed.links || INITIAL_LINKS;
-        loadedLinks = loadedLinks.map(link => {
-          if (!validCategoryIds.has(link.categoryId)) {
-            return { ...link, categoryId: 'common' };
+        // 数据迁移：将旧的categoryId转换为categoryIds数组
+        loadedLinks = loadedLinks.map((link: any) => {
+          // 如果有旧的categoryId字段但没有categoryIds，进行迁移
+          if (link.categoryId && !link.categoryIds) {
+            link = { ...link, categoryIds: [link.categoryId] };
+            delete link.categoryId;
           }
-          return link;
+          // 确俜ategoryIds是数组
+          if (!link.categoryIds || !Array.isArray(link.categoryIds)) {
+            link = { ...link, categoryIds: ['common'] };
+          }
+          // 过滤无效的分类ID
+          const validCats = link.categoryIds.filter((catId: string) => validCategoryIds.has(catId));
+          if (validCats.length === 0) {
+            return { ...link, categoryIds: ['common'] };
+          }
+          return { ...link, categoryIds: validCats };
         });
 
         setLinks(loadedLinks);
@@ -746,7 +762,7 @@ function App() {
     }
 
     const newLinks = links.map(link =>
-      selectedLinks.has(link.id) ? { ...link, categoryId: targetCategoryId } : link
+      selectedLinks.has(link.id) ? { ...link, categoryIds: [targetCategoryId] } : link
     );
     updateData(newLinks, categories);
     setSelectedLinks(new Set());
@@ -966,8 +982,9 @@ function App() {
     }
 
     // 获取当前分类下的所有链接（不包括置顶链接）
+    const firstCategoryId = data.categoryIds[0] || 'common';
     const categoryLinks = links.filter(link =>
-      !link.pinned && (data.categoryId === 'all' || link.categoryId === data.categoryId)
+      !link.pinned && (firstCategoryId === 'all' || link.categoryIds.includes(firstCategoryId))
     );
 
     // 计算新链接的order值，使其排在分类最后
@@ -1321,9 +1338,15 @@ function App() {
       ];
     }
 
-    // Move links to common or first available
-    const targetId = 'common';
-    const newLinks = links.map(l => l.categoryId === catId ? { ...l, categoryId: targetId } : l);
+    // 从链接的categoryIds中移除被删除的分类ID，如果categoryIds为空则添加'common'
+    const newLinks = links.map(l => {
+      if (l.categoryIds.includes(catId)) {
+        const updatedCategoryIds = l.categoryIds.filter(id => id !== catId);
+        // 如果移除后没有分类，添加到"常用推荐"
+        return { ...l, categoryIds: updatedCategoryIds.length > 0 ? updatedCategoryIds : ['common'] };
+      }
+      return l;
+    });
 
     updateData(newLinks, newCats);
   };
@@ -1654,8 +1677,13 @@ function App() {
   };
 
   const pinnedLinks = useMemo(() => {
-    // Don't show pinned links if they belong to a locked category
-    const filteredPinnedLinks = links.filter(l => l.pinned && !isCategoryLocked(l.categoryId));
+    // Don't show pinned links if ALL their categories are locked
+    const filteredPinnedLinks = links.filter(l => {
+      if (!l.pinned) return false;
+      // 检查链接的所有分类是否都被锁定
+      const hasUnlockedCategory = l.categoryIds.some(catId => !isCategoryLocked(catId));
+      return hasUnlockedCategory;
+    });
     // 按照pinnedOrder字段排序，如果没有pinnedOrder字段则按创建时间排序
     return filteredPinnedLinks.sort((a, b) => {
       // 如果有pinnedOrder字段，则使用pinnedOrder排序
@@ -1673,8 +1701,11 @@ function App() {
   const displayedLinks = useMemo(() => {
     let result = links;
 
-    // Security Filter: Always hide links from locked categories
-    result = result.filter(l => !isCategoryLocked(l.categoryId));
+    // Security Filter: Always hide links where ALL categories are locked
+    result = result.filter(l => {
+      const hasUnlockedCategory = l.categoryIds.some(catId => !isCategoryLocked(catId));
+      return hasUnlockedCategory;
+    });
 
     // Search Filter
     if (searchQuery.trim()) {
@@ -1686,9 +1717,9 @@ function App() {
       );
     }
 
-    // Category Filter
+    // Category Filter - 链接属于所选分类则显示
     if (selectedCategory !== 'all') {
-      result = result.filter(l => l.categoryId === selectedCategory);
+      result = result.filter(l => l.categoryIds.includes(selectedCategory));
     }
 
     // 按照order字段排序，如果没有order字段则按创建时间排序
@@ -2014,6 +2045,16 @@ function App() {
 
             {/* Footer Actions */}
             <div className="p-4 border-t border-slate-100 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50 shrink-0">
+
+              {/* Widget Button */}
+              <button
+                onClick={() => setIsWidgetContainerOpen(true)}
+                className="w-full flex items-center justify-center gap-2 p-3 mb-3 text-sm font-medium text-white bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 rounded-xl shadow-lg shadow-purple-500/20 transition-all"
+                title="小工具"
+              >
+                <Sparkles size={16} />
+                <span>小工具</span>
+              </button>
 
               <div className="grid grid-cols-3 gap-2 mb-2">
                 <button
@@ -2563,6 +2604,13 @@ function App() {
             title={qrCodeModal.title || ''}
             onClose={() => setQrCodeModal({ isOpen: false, url: '', title: '' })}
           />
+
+          {/* 小工具容器 */}
+          <WidgetContainer
+            isOpen={isWidgetContainerOpen}
+            onClose={() => setIsWidgetContainerOpen(false)}
+            darkMode={darkMode}
+          />
         </>
       )}
     </div>
@@ -2570,5 +2618,4 @@ function App() {
 }
 
 export default App;
-
 

@@ -4,10 +4,11 @@ export interface LinkItem {
   url: string;
   icon?: string;
   description?: string;
-  categoryId: string;
+  categoryIds: string[]; // Changed from categoryId to support multiple categories
   createdAt: number;
   pinned?: boolean; // New field for pinning
   pinnedOrder?: number; // Field for pinned link sorting order
+  order?: number; // Field for link sorting order within category
 }
 
 export interface Category {
@@ -86,9 +87,9 @@ export const DEFAULT_CATEGORIES: Category[] = [
 ];
 
 export const INITIAL_LINKS: LinkItem[] = [
-  { id: '1', title: 'GitHub', url: 'https://github.com', categoryId: 'dev', createdAt: Date.now(), description: '代码托管平台', pinned: true },
-  { id: '2', title: 'React', url: 'https://react.dev', categoryId: 'dev', createdAt: Date.now(), description: '构建Web用户界面的库' },
-  { id: '3', title: 'Tailwind CSS', url: 'https://tailwindcss.com', categoryId: 'design', createdAt: Date.now(), description: '原子化CSS框架' },
-  { id: '4', title: 'ChatGPT', url: 'https://chat.openai.com', categoryId: 'ai', createdAt: Date.now(), description: 'OpenAI聊天机器人', pinned: true },
-  { id: '5', title: 'Gemini', url: 'https://gemini.google.com', categoryId: 'ai', createdAt: Date.now(), description: 'Google DeepMind AI' },
+  { id: '1', title: 'GitHub', url: 'https://github.com', categoryIds: ['dev'], createdAt: Date.now(), description: '代码托管平台', pinned: true },
+  { id: '2', title: 'React', url: 'https://react.dev', categoryIds: ['dev'], createdAt: Date.now(), description: '构建Web用户界面的库' },
+  { id: '3', title: 'Tailwind CSS', url: 'https://tailwindcss.com', categoryIds: ['design'], createdAt: Date.now(), description: '原子化CSS框架' },
+  { id: '4', title: 'ChatGPT', url: 'https://chat.openai.com', categoryIds: ['ai'], createdAt: Date.now(), description: 'OpenAI聊天机器人', pinned: true },
+  { id: '5', title: 'Gemini', url: 'https://gemini.google.com', categoryIds: ['ai'], createdAt: Date.now(), description: 'Google DeepMind AI' },
 ];

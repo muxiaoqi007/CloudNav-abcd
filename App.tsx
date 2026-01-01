@@ -236,6 +236,17 @@ function App() {
     }
   };
 
+  // 安全获取链接的categoryIds，兼容旧数据格式（用于早期函数）
+  const getLinkCategoryIds = (link: any): string[] => {
+    if (link.categoryIds && Array.isArray(link.categoryIds)) {
+      return link.categoryIds;
+    }
+    if (link.categoryId) {
+      return [link.categoryId];
+    }
+    return ['common'];
+  };
+
   const syncToCloud = async (newLinks: LinkItem[], newCategories: Category[], token: string) => {
     setSyncStatus('saving');
     try {
@@ -982,9 +993,9 @@ function App() {
     }
 
     // 获取当前分类下的所有链接（不包括置顶链接）
-    const firstCategoryId = data.categoryIds[0] || 'common';
+    const firstCategoryId = (data.categoryIds && data.categoryIds[0]) || (data as any).categoryId || 'common';
     const categoryLinks = links.filter(link =>
-      !link.pinned && (firstCategoryId === 'all' || link.categoryIds.includes(firstCategoryId))
+      !link.pinned && (firstCategoryId === 'all' || (link.categoryIds ? link.categoryIds.includes(firstCategoryId) : (link as any).categoryId === firstCategoryId))
     );
 
     // 计算新链接的order值，使其排在分类最后
@@ -1340,10 +1351,15 @@ function App() {
 
     // 从链接的categoryIds中移除被删除的分类ID，如果categoryIds为空则添加'common'
     const newLinks = links.map(l => {
-      if (l.categoryIds.includes(catId)) {
-        const updatedCategoryIds = l.categoryIds.filter(id => id !== catId);
+      const linkCatIds = getLinkCategoryIds(l);
+      if (linkCatIds.includes(catId)) {
+        const updatedCategoryIds = linkCatIds.filter(id => id !== catId);
         // 如果移除后没有分类，添加到"常用推荐"
         return { ...l, categoryIds: updatedCategoryIds.length > 0 ? updatedCategoryIds : ['common'] };
+      }
+      // 确保旧数据也使用新格式
+      if (!l.categoryIds) {
+        return { ...l, categoryIds: linkCatIds };
       }
       return l;
     });
@@ -1681,7 +1697,7 @@ function App() {
     const filteredPinnedLinks = links.filter(l => {
       if (!l.pinned) return false;
       // 检查链接的所有分类是否都被锁定
-      const hasUnlockedCategory = l.categoryIds.some(catId => !isCategoryLocked(catId));
+      const hasUnlockedCategory = getLinkCategoryIds(l).some(catId => !isCategoryLocked(catId));
       return hasUnlockedCategory;
     });
     // 按照pinnedOrder字段排序，如果没有pinnedOrder字段则按创建时间排序
@@ -1703,7 +1719,7 @@ function App() {
 
     // Security Filter: Always hide links where ALL categories are locked
     result = result.filter(l => {
-      const hasUnlockedCategory = l.categoryIds.some(catId => !isCategoryLocked(catId));
+      const hasUnlockedCategory = getLinkCategoryIds(l).some(catId => !isCategoryLocked(catId));
       return hasUnlockedCategory;
     });
 
@@ -1719,7 +1735,7 @@ function App() {
 
     // Category Filter - 链接属于所选分类则显示
     if (selectedCategory !== 'all') {
-      result = result.filter(l => l.categoryIds.includes(selectedCategory));
+      result = result.filter(l => getLinkCategoryIds(l).includes(selectedCategory));
     }
 
     // 按照order字段排序，如果没有order字段则按创建时间排序

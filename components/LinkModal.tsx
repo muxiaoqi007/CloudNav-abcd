@@ -18,7 +18,7 @@ const LinkModal: React.FC<LinkModalProps> = ({ isOpen, onClose, onSave, onDelete
   const [title, setTitle] = useState('');
   const [url, setUrl] = useState('');
   const [description, setDescription] = useState('');
-  const [categoryId, setCategoryId] = useState(categories[0]?.id || 'common');
+  const [categoryIds, setCategoryIds] = useState<string[]>([categories[0]?.id || 'common']);
   const [pinned, setPinned] = useState(false);
   const [icon, setIcon] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
@@ -26,7 +26,7 @@ const LinkModal: React.FC<LinkModalProps> = ({ isOpen, onClose, onSave, onDelete
   const [autoFetchIcon, setAutoFetchIcon] = useState(true);
   const [batchMode, setBatchMode] = useState(false);
   const [showSuccessMessage, setShowSuccessMessage] = useState(false);
-  
+
   // 当模态框关闭时，重置批量模式为默认关闭状态
   useEffect(() => {
     if (!isOpen) {
@@ -34,7 +34,7 @@ const LinkModal: React.FC<LinkModalProps> = ({ isOpen, onClose, onSave, onDelete
       setShowSuccessMessage(false);
     }
   }, [isOpen]);
-  
+
   // 成功提示1秒后自动消失
   useEffect(() => {
     if (showSuccessMessage) {
@@ -51,7 +51,9 @@ const LinkModal: React.FC<LinkModalProps> = ({ isOpen, onClose, onSave, onDelete
         setTitle(initialData.title);
         setUrl(initialData.url);
         setDescription(initialData.description || '');
-        setCategoryId(initialData.categoryId);
+        // 兼容旧数据格式
+        const cats = initialData.categoryIds || [(initialData as any).categoryId] || ['common'];
+        setCategoryIds(cats.length > 0 ? cats : ['common']);
         setPinned(initialData.pinned || false);
         setIcon(initialData.icon || '');
       } else {
@@ -60,7 +62,7 @@ const LinkModal: React.FC<LinkModalProps> = ({ isOpen, onClose, onSave, onDelete
         setDescription('');
         // 如果有默认分类ID且该分类存在，则使用默认分类，否则使用第一个分类
         const defaultCategory = defaultCategoryId && categories.find(cat => cat.id === defaultCategoryId);
-        setCategoryId(defaultCategory ? defaultCategoryId : (categories[0]?.id || 'common'));
+        setCategoryIds([defaultCategory ? defaultCategoryId : (categories[0]?.id || 'common')]);
         setPinned(false);
         setIcon('');
       }
@@ -73,7 +75,7 @@ const LinkModal: React.FC<LinkModalProps> = ({ isOpen, onClose, onSave, onDelete
       const timer = setTimeout(() => {
         handleFetchIcon();
       }, 500); // 延迟500ms执行，避免频繁请求
-      
+
       return () => clearTimeout(timer);
     }
   }, [url, autoFetchIcon, initialData]);
@@ -93,7 +95,7 @@ const LinkModal: React.FC<LinkModalProps> = ({ isOpen, onClose, onSave, onDelete
         const urlObj = new URL(domain);
         domain = urlObj.hostname;
       }
-      
+
       // 将自定义图标保存到KV缓存
       const authToken = localStorage.getItem('authToken');
       if (authToken) {
@@ -118,15 +120,21 @@ const LinkModal: React.FC<LinkModalProps> = ({ isOpen, onClose, onSave, onDelete
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!title || !url) return;
-    
+
     // 确保URL有协议前缀
     let finalUrl = url;
     if (!url.startsWith('http://') && !url.startsWith('https://')) {
       finalUrl = 'https://' + url;
     }
-    
+
+    // 确保至少选择了一个分类
+    if (categoryIds.length === 0) {
+      alert('请至少选择一个分类');
+      return;
+    }
+
     // 保存链接数据
     onSave({
       id: initialData?.id || '',
@@ -134,15 +142,15 @@ const LinkModal: React.FC<LinkModalProps> = ({ isOpen, onClose, onSave, onDelete
       url: finalUrl,
       icon,
       description,
-      categoryId,
+      categoryIds,
       pinned
     });
-    
+
     // 如果有自定义图标URL，缓存到KV空间
     if (icon && !icon.includes('faviconextractor.com')) {
       cacheCustomIcon(finalUrl, icon);
     }
-    
+
     // 批量模式下不关闭窗口，只显示成功提示
     if (batchMode) {
       setShowSuccessMessage(true);
@@ -152,6 +160,7 @@ const LinkModal: React.FC<LinkModalProps> = ({ isOpen, onClose, onSave, onDelete
       setIcon('');
       setDescription('');
       setPinned(false);
+      // 保留当前选择的分类
       // 如果开启自动获取图标，尝试获取新图标
       if (autoFetchIcon && finalUrl) {
         handleFetchIcon();
@@ -164,32 +173,35 @@ const LinkModal: React.FC<LinkModalProps> = ({ isOpen, onClose, onSave, onDelete
   const handleAIAssist = async () => {
     if (!url || !title) return;
     if (!aiConfig.apiKey) {
-        alert("请先点击侧边栏左下角设置图标配置 AI API Key");
-        return;
+      alert("请先点击侧边栏左下角设置图标配置 AI API Key");
+      return;
     }
 
     setIsGenerating(true);
-    
+
     // Parallel execution for speed
     try {
-        const descPromise = generateLinkDescription(title, url, aiConfig);
-        const catPromise = suggestCategory(title, url, categories, aiConfig);
-        
-        const [desc, cat] = await Promise.all([descPromise, catPromise]);
-        
-        if (desc) setDescription(desc);
-        if (cat) setCategoryId(cat);
-        
+      const descPromise = generateLinkDescription(title, url, aiConfig);
+      const catPromise = suggestCategory(title, url, categories, aiConfig);
+
+      const [desc, cat] = await Promise.all([descPromise, catPromise]);
+
+      if (desc) setDescription(desc);
+      // AI建议的分类添加到当前选择中（如果尚未选择）
+      if (cat && !categoryIds.includes(cat)) {
+        setCategoryIds([...categoryIds, cat]);
+      }
+
     } catch (e) {
-        console.error("AI Assist failed", e);
+      console.error("AI Assist failed", e);
     } finally {
-        setIsGenerating(false);
+      setIsGenerating(false);
     }
   };
 
   const handleFetchIcon = async () => {
     if (!url) return;
-    
+
     setIsFetchingIcon(true);
     try {
       // 提取域名
@@ -198,12 +210,12 @@ const LinkModal: React.FC<LinkModalProps> = ({ isOpen, onClose, onSave, onDelete
       if (!url.startsWith('http://') && !url.startsWith('https://')) {
         domain = 'https://' + url;
       }
-      
+
       if (domain.startsWith('http://') || domain.startsWith('https://')) {
         const urlObj = new URL(domain);
         domain = urlObj.hostname;
       }
-      
+
       // 先尝试从KV缓存获取图标
       try {
         const response = await fetch(`/api/storage?getConfig=favicon&domain=${encodeURIComponent(domain)}`);
@@ -218,11 +230,11 @@ const LinkModal: React.FC<LinkModalProps> = ({ isOpen, onClose, onSave, onDelete
       } catch (error) {
         console.log("Failed to fetch cached icon, will generate new one", error);
       }
-      
+
       // 如果缓存中没有，则生成新图标
       const iconUrl = `https://www.faviconextractor.com/favicon/${domain}?larger=true`;
       setIcon(iconUrl);
-      
+
       // 将图标保存到KV缓存
       try {
         const authToken = localStorage.getItem('authToken');
@@ -264,11 +276,10 @@ const LinkModal: React.FC<LinkModalProps> = ({ isOpen, onClose, onSave, onDelete
             <button
               type="button"
               onClick={() => setPinned(!pinned)}
-              className={`flex items-center gap-1 px-2 py-1 rounded-md border transition-all ${
-                pinned 
-                ? 'bg-blue-100 border-blue-200 text-blue-600 dark:bg-blue-900/40 dark:border-blue-800 dark:text-blue-300' 
-                : 'bg-slate-50 border-slate-200 text-slate-500 dark:bg-slate-700 dark:border-slate-600 dark:text-slate-400'
-              }`}
+              className={`flex items-center gap-1 px-2 py-1 rounded-md border transition-all ${pinned
+                  ? 'bg-blue-100 border-blue-200 text-blue-600 dark:bg-blue-900/40 dark:border-blue-800 dark:text-blue-300'
+                  : 'bg-slate-50 border-slate-200 text-slate-500 dark:bg-slate-700 dark:border-slate-600 dark:text-slate-400'
+                }`}
               title={pinned ? "取消置顶" : "置顶"}
             >
               <Pin size={14} className={pinned ? "fill-current" : ""} />
@@ -292,9 +303,8 @@ const LinkModal: React.FC<LinkModalProps> = ({ isOpen, onClose, onSave, onDelete
               <button
                 type="button"
                 onClick={handleDelete}
-                className={`flex items-center gap-1 px-2 py-1 rounded-md border transition-all ${
-                  'bg-red-50 border-red-200 text-red-600 hover:bg-red-100 dark:bg-red-900/20 dark:border-red-800/30 dark:text-red-400 dark:hover:bg-red-900/30'
-                }`}
+                className={`flex items-center gap-1 px-2 py-1 rounded-md border transition-all ${'bg-red-50 border-red-200 text-red-600 hover:bg-red-100 dark:bg-red-900/20 dark:border-red-800/30 dark:text-red-400 dark:hover:bg-red-900/30'
+                  }`}
                 title="删除链接"
               >
                 <Trash2 size={14} />
@@ -323,14 +333,14 @@ const LinkModal: React.FC<LinkModalProps> = ({ isOpen, onClose, onSave, onDelete
           <div>
             <label className="block text-sm font-medium mb-1 dark:text-slate-300">URL 链接</label>
             <div className="flex gap-2">
-                <input
+              <input
                 type="text"
                 required
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
                 className="w-full p-2 rounded-lg border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all"
                 placeholder="example.com 或 https://..."
-                />
+              />
             </div>
           </div>
 
@@ -374,18 +384,18 @@ const LinkModal: React.FC<LinkModalProps> = ({ isOpen, onClose, onSave, onDelete
 
           <div>
             <div className="flex justify-between items-center mb-1">
-                <label className="block text-sm font-medium dark:text-slate-300">描述 (选填)</label>
-                {(title && url) && (
-                    <button
-                        type="button"
-                        onClick={handleAIAssist}
-                        disabled={isGenerating}
-                        className="text-xs flex items-center gap-1 text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300 transition-colors"
-                    >
-                        {isGenerating ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
-                        AI 自动填写
-                    </button>
-                )}
+              <label className="block text-sm font-medium dark:text-slate-300">描述 (选填)</label>
+              {(title && url) && (
+                <button
+                  type="button"
+                  onClick={handleAIAssist}
+                  disabled={isGenerating}
+                  className="text-xs flex items-center gap-1 text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300 transition-colors"
+                >
+                  {isGenerating ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
+                  AI 自动填写
+                </button>
+              )}
             </div>
             <textarea
               value={description}
@@ -396,16 +406,35 @@ const LinkModal: React.FC<LinkModalProps> = ({ isOpen, onClose, onSave, onDelete
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-1 dark:text-slate-300">分类</label>
-            <select
-            value={categoryId}
-            onChange={(e) => setCategoryId(e.target.value)}
-            className="w-full p-2 rounded-lg border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-            >
-            {categories.map(cat => (
-                <option key={cat.id} value={cat.id}>{cat.name}</option>
-            ))}
-            </select>
+            <label className="block text-sm font-medium mb-2 dark:text-slate-300">分类 <span className="text-xs text-slate-500">(可多选)</span></label>
+            <div className="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto p-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700">
+              {categories.map(cat => (
+                <label
+                  key={cat.id}
+                  className={`flex items-center gap-2 p-2 rounded-md cursor-pointer transition-colors ${categoryIds.includes(cat.id)
+                      ? 'bg-blue-100 dark:bg-blue-900/40 border border-blue-300 dark:border-blue-700'
+                      : 'bg-white dark:bg-slate-800 border border-transparent hover:bg-slate-100 dark:hover:bg-slate-600'
+                    }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={categoryIds.includes(cat.id)}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setCategoryIds([...categoryIds, cat.id]);
+                      } else {
+                        // 确保至少保留一个分类
+                        if (categoryIds.length > 1) {
+                          setCategoryIds(categoryIds.filter(id => id !== cat.id));
+                        }
+                      }
+                    }}
+                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-slate-300 rounded dark:border-slate-600 dark:bg-slate-700"
+                  />
+                  <span className="text-sm text-slate-700 dark:text-slate-300 truncate">{cat.name}</span>
+                </label>
+              ))}
+            </div>
           </div>
 
           <div className="pt-2 relative">

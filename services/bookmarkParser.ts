@@ -25,13 +25,13 @@ export const parseBookmarks = async (file: File): Promise<ImportResult> => {
     if (!name) return 'common';
     // Normalize: remove generic folders like "Bookmarks Bar"
     if (['Bookmarks Bar', '书签栏', 'Other Bookmarks', '其他书签'].includes(name)) {
-        return 'common';
+      return 'common';
     }
 
     if (categoryMap.has(name)) {
       return categoryMap.get(name)!;
     }
-    
+
     // Check existing default categories could be mapped here if we had access, 
     // but for now we create new ones.
     const newId = generateId();
@@ -46,10 +46,10 @@ export const parseBookmarks = async (file: File): Promise<ImportResult> => {
 
   // Traverse the DL/DT structure
   // Chrome structure: <DT><H3>Folder Name</H3><DL> ...items... </DL>
-  
+
   const traverse = (element: Element, currentCategoryName: string) => {
     const children = Array.from(element.children);
-    
+
     for (let i = 0; i < children.length; i++) {
       const node = children[i];
       const tagName = node.tagName.toUpperCase();
@@ -61,24 +61,24 @@ export const parseBookmarks = async (file: File): Promise<ImportResult> => {
         const dl = node.querySelector('dl');
 
         if (h3 && dl) {
-            // It's a folder
-            const folderName = h3.textContent || 'Unknown';
-            traverse(dl, folderName);
+          // It's a folder
+          const folderName = h3.textContent || 'Unknown';
+          traverse(dl, folderName);
         } else if (a) {
-            // It's a link
-            const title = a.textContent || a.getAttribute('href') || 'No Title';
-            const url = a.getAttribute('href');
-            
-            if (url && !url.startsWith('chrome://') && !url.startsWith('about:')) {
-                links.push({
-                    id: generateId(),
-                    title: title,
-                    url: url,
-                    categoryId: getCategoryId(currentCategoryName),
-                    createdAt: Date.now(),
-                    icon: a.getAttribute('icon') || undefined
-                });
-            }
+          // It's a link
+          const title = a.textContent || a.getAttribute('href') || 'No Title';
+          const url = a.getAttribute('href');
+
+          if (url && !url.startsWith('chrome://') && !url.startsWith('about:')) {
+            links.push({
+              id: generateId(),
+              title: title,
+              url: url,
+              categoryIds: [getCategoryId(currentCategoryName)],
+              createdAt: Date.now(),
+              icon: a.getAttribute('icon') || undefined
+            });
+          }
         }
       }
     }

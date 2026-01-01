@@ -26,21 +26,24 @@ export const generateBookmarkHtml = (links: LinkItem[], categories: Category[]):
       .replace(/'/g, "&#039;");
   };
 
-  // Group links by category
+  // Group links by category - a link can appear in multiple categories
   const linksByCat = new Map<string, LinkItem[]>();
   links.forEach(link => {
-    const list = linksByCat.get(link.categoryId) || [];
-    list.push(link);
-    linksByCat.set(link.categoryId, list);
+    // Add link to each of its categories
+    link.categoryIds.forEach(catId => {
+      const list = linksByCat.get(catId) || [];
+      list.push(link);
+      linksByCat.set(catId, list);
+    });
   });
 
   // 1. Process Categories
   categories.forEach(cat => {
     const catLinks = linksByCat.get(cat.id) || [];
-    
+
     html += `    <DT><H3 ADD_DATE="${now}" LAST_MODIFIED="${now}">${escapeHtml(cat.name)}</H3>\n`;
     html += `    <DL><p>\n`;
-    
+
     catLinks.forEach(link => {
       const date = Math.floor(link.createdAt / 1000);
       const iconAttr = link.icon ? ` ICON="${link.icon}"` : '';
@@ -50,16 +53,16 @@ export const generateBookmarkHtml = (links: LinkItem[], categories: Category[]):
     html += `    </DL><p>\n`;
   });
 
-  // 2. Process Uncategorized (links with invalid categoryId)
+  // 2. Process Uncategorized (links with no valid categoryIds)
   const validCatIds = new Set(categories.map(c => c.id));
-  const uncategorized = links.filter(l => !validCatIds.has(l.categoryId));
+  const uncategorized = links.filter(l => !l.categoryIds.some(catId => validCatIds.has(catId)));
 
   if (uncategorized.length > 0) {
     html += `    <DT><H3 ADD_DATE="${now}" LAST_MODIFIED="${now}">未分类</H3>\n`;
     html += `    <DL><p>\n`;
     uncategorized.forEach(link => {
-        const date = Math.floor(link.createdAt / 1000);
-        html += `        <DT><A HREF="${link.url}" ADD_DATE="${date}">${escapeHtml(link.title)}</A>\n`;
+      const date = Math.floor(link.createdAt / 1000);
+      html += `        <DT><A HREF="${link.url}" ADD_DATE="${date}">${escapeHtml(link.title)}</A>\n`;
     });
     html += `    </DL><p>\n`;
   }

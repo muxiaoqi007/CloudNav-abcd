@@ -34,18 +34,18 @@ export const onRequestPost = async (context: { request: Request; env: Env }) => 
 
   try {
     const newLinkData = await request.json() as any;
-    
+
     // Validate input
     if (!newLinkData.title || !newLinkData.url) {
-        return new Response(JSON.stringify({ error: 'Missing title or url' }), { status: 400, headers: corsHeaders });
+      return new Response(JSON.stringify({ error: 'Missing title or url' }), { status: 400, headers: corsHeaders });
     }
 
     // 2. Fetch current data from KV
     const currentDataStr = await env.CLOUDNAV_KV.get('app_data');
     let currentData = { links: [], categories: [] };
-    
+
     if (currentDataStr) {
-        currentData = JSON.parse(currentDataStr);
+      currentData = JSON.parse(currentDataStr);
     }
 
     // 3. Determine Category
@@ -54,53 +54,61 @@ export const onRequestPost = async (context: { request: Request; env: Env }) => 
 
     // 3a. Check for explicit categoryId from request
     if (newLinkData.categoryId) {
-        const explicitCat = currentData.categories.find((c: any) => c.id === newLinkData.categoryId);
-        if (explicitCat) {
-            targetCatId = explicitCat.id;
-            targetCatName = explicitCat.name;
-        }
+      const explicitCat = currentData.categories.find((c: any) => c.id === newLinkData.categoryId);
+      if (explicitCat) {
+        targetCatId = explicitCat.id;
+        targetCatName = explicitCat.name;
+      }
     }
 
     // 3b. Fallback: Auto-detect if no explicit category or explicit one not found
     if (!targetCatId) {
-        if (currentData.categories && currentData.categories.length > 0) {
-            // Try to find specific keywords
-            const keywords = ['收集', '未分类', 'inbox', 'temp', 'later'];
-            const match = currentData.categories.find((c: any) => 
-                keywords.some(k => c.name.toLowerCase().includes(k))
-            );
+      if (currentData.categories && currentData.categories.length > 0) {
+        // Try to find specific keywords
+        const keywords = ['收集', '未分类', 'inbox', 'temp', 'later'];
+        const match = currentData.categories.find((c: any) =>
+          keywords.some(k => c.name.toLowerCase().includes(k))
+        );
 
-            if (match) {
-                targetCatId = match.id;
-                targetCatName = match.name;
-            } else {
-                // Fallback to 'common' if exists, else first category
-                const common = currentData.categories.find((c: any) => c.id === 'common');
-                if (common) {
-                    targetCatId = 'common';
-                    targetCatName = common.name;
-                } else {
-                    targetCatId = currentData.categories[0].id;
-                    targetCatName = currentData.categories[0].name;
-                }
-            }
+        if (match) {
+          targetCatId = match.id;
+          targetCatName = match.name;
         } else {
-            // No categories exist at all
+          // Fallback to 'common' if exists, else first category
+          const common = currentData.categories.find((c: any) => c.id === 'common');
+          if (common) {
             targetCatId = 'common';
-            targetCatName = '默认';
+            targetCatName = common.name;
+          } else {
+            targetCatId = currentData.categories[0].id;
+            targetCatName = currentData.categories[0].name;
+          }
         }
+      } else {
+        // No categories exist at all
+        targetCatId = 'common';
+        targetCatName = '默认';
+      }
     }
 
-    // 4. Create new link object
+    // 4. Create new link object with categoryIds array
+    // Support both legacy categoryId and new categoryIds from request
+    let finalCategoryIds: string[];
+    if (newLinkData.categoryIds && Array.isArray(newLinkData.categoryIds) && newLinkData.categoryIds.length > 0) {
+      finalCategoryIds = newLinkData.categoryIds;
+    } else {
+      finalCategoryIds = [targetCatId];
+    }
+
     const newLink = {
-        id: Date.now().toString(),
-        title: newLinkData.title,
-        url: newLinkData.url,
-        description: newLinkData.description || '',
-        categoryId: targetCatId, 
-        createdAt: Date.now(),
-        pinned: false,
-        icon: undefined
+      id: Date.now().toString(),
+      title: newLinkData.title,
+      url: newLinkData.url,
+      description: newLinkData.description || '',
+      categoryIds: finalCategoryIds,
+      createdAt: Date.now(),
+      pinned: false,
+      icon: undefined
     };
 
     // 5. Append
@@ -110,10 +118,10 @@ export const onRequestPost = async (context: { request: Request; env: Env }) => 
     // 6. Save back to KV
     await env.CLOUDNAV_KV.put('app_data', JSON.stringify(currentData));
 
-    return new Response(JSON.stringify({ 
-        success: true, 
-        link: newLink,
-        categoryName: targetCatName 
+    return new Response(JSON.stringify({
+      success: true,
+      link: newLink,
+      categoryName: targetCatName
     }), {
       headers: { 'Content-Type': 'application/json', ...corsHeaders },
     });
